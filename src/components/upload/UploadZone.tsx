@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, X, Image as ImageIcon, CheckCircle } from 'lucide-react';
+import { Upload, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { validateFiles, MAX_FILE_SIZE, MAX_FILES_PER_UPLOAD } from '@/lib/security/validation';
 
 interface UploadedFile {
   id: string;
@@ -11,6 +12,7 @@ interface UploadedFile {
   preview: string;
   status: 'uploading' | 'success' | 'error';
   progress: number;
+  errors?: string[];
 }
 
 interface UploadZoneProps {
@@ -21,14 +23,36 @@ interface UploadZoneProps {
 
 export function UploadZone({ onUpload, maxFiles = 10, className = "" }: UploadZoneProps) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
+    // Validate all files before processing
+    const validationResult = validateFiles(acceptedFiles);
+    
+    if (!validationResult.valid) {
+      setValidationErrors(validationResult.errors);
+      
+      // Show file-specific errors
+      if (validationResult.fileErrors.size > 0) {
+        const fileErrorMessages: string[] = [];
+        validationResult.fileErrors.forEach((errors, filename) => {
+          fileErrorMessages.push(`${filename}: ${errors.join(', ')}`);
+        });
+        setValidationErrors(prev => [...prev, ...fileErrorMessages]);
+      }
+      return;
+    }
+
+    // Clear previous validation errors
+    setValidationErrors([]);
+
     const newFiles = acceptedFiles.map(file => ({
       id: Math.random().toString(36).substring(2),
       file,
       preview: URL.createObjectURL(file),
       status: 'uploading' as const,
       progress: 0,
+      errors: [],
     }));
 
     setUploadedFiles(prev => [...prev, ...newFiles]);
@@ -81,6 +105,38 @@ export function UploadZone({ onUpload, maxFiles = 10, className = "" }: UploadZo
 
   return (
     <div className={`w-full max-w-4xl mx-auto ${className}`}>
+      {/* Validation Errors */}
+      <AnimatePresence>
+        {validationErrors.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+          >
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-semibold text-red-900 dark:text-red-200 mb-2">
+                  Validation Errors
+                </h4>
+                <ul className="list-disc list-inside space-y-1 text-sm text-red-800 dark:text-red-300">
+                  {validationErrors.map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                onClick={() => setValidationErrors([])}
+                className="p-1 hover:bg-red-100 dark:hover:bg-red-800 rounded"
+              >
+                <X className="h-4 w-4 text-red-600" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Drop Zone */}
       <div
         {...getRootProps()}
@@ -105,7 +161,7 @@ export function UploadZone({ onUpload, maxFiles = 10, className = "" }: UploadZo
               Drag and drop your images here, or click to browse
             </p>
             <p className="text-sm text-slate-400 dark:text-slate-500 mt-2">
-              Supports JPEG, PNG, GIF, WebP up to 10MB each
+              Supports JPEG, PNG, GIF, WebP up to {MAX_FILE_SIZE / 1024 / 1024}MB each (max {MAX_FILES_PER_UPLOAD} files)
             </p>
             </div>
           </div>
