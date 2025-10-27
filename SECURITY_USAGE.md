@@ -95,10 +95,11 @@ const safeBio = sanitizeTextInput(userBio, 500); // Max 500 chars
 ```typescript
 import { sanitizeTags } from '@/lib/security/sanitization';
 
-const userInput = 'wedding, <script>malicious</script>, nature, portrait';
+const userInput = 'wedding, <script>malicious</script>, nature, portrait!!!';
 const tags = sanitizeTags(userInput);
 // Result: ['wedding', 'scriptmaliciousscript', 'nature', 'portrait']
-// Limited to 20 tags, special chars removed
+// Script tags removed, only alphanumeric/spaces/hyphens/underscores remain
+// Limited to 20 tags maximum
 ```
 
 ### Sanitizing Filenames
